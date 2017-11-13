@@ -540,24 +540,7 @@ try:
 
                 lecturaPIR = GPIO.input(pinPIR1)
 
-                #db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(False)
-                #db.child("active-systems").child(idProduct).child("system-information").child("servo2").set(False)
 
-                # Enviamos un pulso del 4.5% para girar los servos hacia la izquierda
-                #moveServomotors(4.5)
-
-                # Enviamos un pulso del 10.5% para girar los servos hacia la derecha
-                #moveServomotors(10.5)
-
-                # Enviamos un pulso del 7.5% para centrar los servos de nuevo
-                #moveServomotors(7.5)
-
-
-
-
-                #Cerrar ventana #1
-                ##moveServomotors(10.5)
-                ##moveServomotors(10.5)
                 if(thereAreUsers==False):
                      tokensDevices = []
                      #len(tokensDevices)
