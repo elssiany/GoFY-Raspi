@@ -51,7 +51,8 @@ class FCMPushClient(object):
 		if data=={}:
 			request={"to":json.dumps(reg_ids), "notification":notification}
 		else:
-			request={"to":json.dumps(reg_ids), "notification":notification, "data":data}
+			#request={"to":json.dumps(reg_ids), "notification":notification, "data":data}
+			request = {"to": json.dumps(reg_ids), "data": data}
 
 		response=requests.post(url=self.url, headers=self.header, data=json.dumps(request))
 
@@ -75,7 +76,8 @@ class FCMPushClient(object):
 		if data=={}:
 			request={"to":reg_id, "notification":notification}
 		else:
-			request={"to":reg_id, "notification":notification, "data":data}
+			#request={"to":reg_id, "notification":notification, "data":data}
+			request = {"to": reg_id,"data": data}
 
 		response=requests.post(url=self.url, headers=self.header, data=json.dumps(request))
 

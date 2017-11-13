@@ -32,20 +32,9 @@ fcmPush = FCMPushClient("AAAA2gZ1JVo:APA91bH8g40cMDpoXycUtw5islbcXjG3MPUZVm2QEOD
                         ,"https://fcm.googleapis.com/fcm/send")
 
 
-notification={""}
+notification={"",""}
 
-dataNotification = {
-     "body" :"☆ GoFY ☆",
-     "title" : "☆ GoFY ☆",
-     "bigContent":"Probando notificacion desde la raspiberry",
-     "summaryText":"☆ GoFY ☆",
-     "idNotification":80,
-     "content_available" : true,
-     "priority" : "high"}
 
-registration_id="ev4T56UkvMU:APA91bGnFXivWkg_QhO4KudC5uXD9v7K24OertgdtH57TDTH-eoIIYzHeZsTBQv1cZjccKC1zMFThS-kHQojcJYg36WTa-8qE5Lv0FmlDFv170t4HN5RIlkh4_HUsLLWo7wIuEbluBam"
-
-client.send_single(registration_id,notification,dataNotification)
 
 #inicializamos el sdk de Firebase
 firebase = pyrebase.initialize_app(config)
@@ -245,6 +234,23 @@ def moveServomotors(servo,pulso):
 
 def getTimestamp():
     return "14 de Nov 2017 - Hora: "+str(date.hour)+":"+str(date.minute)#+":"+str(date.second)
+
+
+def sendPushNotication(title,body,message,tokensDevices):
+
+    dataNotification = {
+        "body": body,
+        "title": title,
+        "bigContent":message,
+        "summaryText": body,
+        "idNotification": 80,
+        "content_available": True,
+        "priority": "high"}
+
+    #registration_id = "ev4T56UkvMU:APA91bGnFXivWkg_QhO4KudC5uXD9v7K24OertgdtH57TDTH-eoIIYzHeZsTBQv1cZjccKC1zMFThS-kHQojcJYg36WTa-8qE5Lv0FmlDFv170t4HN5RIlkh4_HUsLLWo7wIuEbluBam"
+
+    fcmPush.send_multiple(tokensDevices, notification, dataNotification)
+
 
 
 ##--------------------------------------------------MAIN--------------------------------------------------------
@@ -553,6 +559,11 @@ try:
                 ##moveServomotors(10.5)
                 ##moveServomotors(10.5)
                 if(thereAreUsers==False):
+                     tokensDevices = []
+                     #len(tokensDevices)
+                     for tokenDevice in db.child("active-systems").child(idProduct).child("tokens-users").get().each():
+                         tokensDevices.append(tokenDevice.va())
+                         #key = tokenDevice.key()
                      listenerSensor()
                 else:
                     if(lecturaIR3 == False) & closeDoor == True:
