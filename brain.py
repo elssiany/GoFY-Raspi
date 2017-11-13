@@ -5,6 +5,7 @@ import RPi.GPIO as GPIO
 # importamos la libreria time para hacer retardos recordar que es en segundos
 from time import sleep
 from lcd_i2c_mod import *
+from push_notification_client import FCMPushClient
 import time
 from datetime import datetime
 
@@ -26,6 +27,26 @@ config = {
   "databaseURL": "https://gofy-c1730.firebaseio.com",
   "storageBucket": "gofy-c1730.appspot.com"
 }
+
+fcmPush = FCMPushClient("AAAA2gZ1JVo:APA91bH8g40cMDpoXycUtw5islbcXjG3MPUZVm2QEODwCpN6A-mb-zfHWfP7ADJApsgw2QMP-bLMs6Jeq1cMapBv9-uUf4vRa5IQ4KuPqZCVX5lGUYo-5ysYySOoIvmhpkonNN4ArH7L"
+                        ,"https://fcm.googleapis.com/fcm/send")
+
+
+notification={""}
+
+dataNotification = {
+     "body" :"☆ GoFY ☆",
+     "title" : "☆ GoFY ☆",
+     "bigContent":"Probando notificacion desde la raspiberry",
+     "summaryText":"☆ GoFY ☆",
+     "idNotification":80,
+     "content_available" : true,
+     "priority" : "high"}
+
+registration_id="ev4T56UkvMU:APA91bGnFXivWkg_QhO4KudC5uXD9v7K24OertgdtH57TDTH-eoIIYzHeZsTBQv1cZjccKC1zMFThS-kHQojcJYg36WTa-8qE5Lv0FmlDFv170t4HN5RIlkh4_HUsLLWo7wIuEbluBam"
+
+client.send_single(registration_id,notification,dataNotification)
+
 #inicializamos el sdk de Firebase
 firebase = pyrebase.initialize_app(config)
 
@@ -60,7 +81,8 @@ actualSecurityQuestions = 1
 numAnswers = 0
 correctAnswers = 0
 sendLicenseReport = True
-
+thereAreUsers = False
+closeDoor = False
 
 
 ##Date time formatting
@@ -87,12 +109,14 @@ GPIO.setup(servo1,GPIO.OUT)
 GPIO.setup(servo2,GPIO.OUT)
 
 
-
-
-s1= GPIO.PWM(servo1,50)        #Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-#s1.start(7.5)               #Enviamos un pulso del 7.5% para centrar el servo1
+'''
+s1 = GPIO.PWM(servo1, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+s1.start(0)               #Enviamos un pulso del 7.5% para centrar el servo1
 s2= GPIO.PWM(servo2,50)        #Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-#s2.start(7.5) #7.5 cerrado
+s2.start(0) #3.2 cerrado
+'''
+
+
 lcd_init()
 
 
@@ -122,13 +146,9 @@ def getRAMinfo():
             return (line.split()[1:4])
 
 
-
-
 # Return % of CPU used by user as a character string
 def getCPUuse():
     return(str(os.popen("top -n1 | awk '/Cpu\(s\):/ {print $2}'").readline().strip()))
-
-
 
 
 
@@ -157,6 +177,7 @@ def writeMSMLCD(mensaje,linea):
     lcd_string(mensaje, linea)
 
 
+
 # Este metodo se encarga de escuchar a los sensores de la casa
 def listenerSensor():
 
@@ -168,8 +189,10 @@ def listenerSensor():
         db.child("active-systems").child(idProduct).child("system-information").child("alarm").set(True)
         messageLog = "El sensor #1 de la ventana detecto movimiento"
         print("Se detecto movimiento en la ventana #1")
-
-        if (isModeScan == True):
+        #print("Ventana2 Cerrada")
+        #moveServomotors(s2, 7.5)  # cerrar
+        
+    if (isModeScan == True):
             # se envia a firebase
             db.child("report-scan-sensors").child(idProduct).push().set("DM")
             print("Se escaneo con exito el sensor de la  ventana #1")
@@ -180,7 +203,8 @@ def listenerSensor():
         db.child("active-systems").child(idProduct).child("system-information").child("alarm").set(True)
         messageLog = "El sensor #2 de la ventana detecto movimiento"
         print("Se detecto movimiento en la ventana #2")
-
+        print("Ventana2 Cerrada")
+        moveServomotors(s2, 7.5)  # cerrar
         if (isModeScan == True):
             # se envia a firebase
             db.child("report-scan-sensors").child(idProduct).push().set("DM")
@@ -208,10 +232,9 @@ def listenerSensor():
 
 
     if(messageLog):
-        eventLog = {"date": "Fecha: " + str(date.year) + " - " + str(date.month) + " - " + str(date.day),
+        eventLog = {"date":getTimestamp(),
                     "log": messageLog}
         db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
-
 
 
 
@@ -219,6 +242,9 @@ def listenerSensor():
 def moveServomotors(servo,pulso):
     servo.ChangeDutyCycle(pulso)
 
+
+def getTimestamp():
+    return "14 de Nov 2017 - Hora: "+str(date.hour)+":"+str(date.minute)#+":"+str(date.second)
 
 
 ##--------------------------------------------------MAIN--------------------------------------------------------
@@ -234,8 +260,12 @@ try:
     # mientras no se suspenda el codigo
     while True:
         date = datetime.now()
-        if db.child("active-systems").child(idProduct).child("system-information").child("activeSystem").get().val():
+        # lectura del dato de firebase
+        isModeScan = db.child("active-systems").child(idProduct).child("system-information").child(
+            "modeScan").get().val()
 
+        if db.child("active-systems").child(idProduct).child("system-information").child("activeSystem").get().val():
+            print("el sistema esta activo")
             if(db.child("list-of-product-licenses").child(idProduct).get().val()):
 
 
@@ -281,7 +311,7 @@ try:
 
                 # lectura del dato <askPermission> en firebase
                 typeAccess = db.child("active-systems").child(idProduct).child("system-information").child("permissionResponse")\
-                    .child("typeAccess").get()
+                    .child("typeAccess").get().val()
 
                 response =  db.child("active-systems").child(idProduct).child("system-information").child("permissionResponse")\
                     .child("response").get().val()
@@ -295,7 +325,8 @@ try:
 
 
                 if(lockSystem == True):
-                    writeMSMLCD('Sistema Bloqueado',1)
+                    writeMSMLCD('Sistema GoFY',1)
+                    writeMSMLCD('Bloqueado', 2)
                 else:
                     lecturaPulsador1 = GPIO.input(pulsador1)
 
@@ -305,11 +336,11 @@ try:
                         readyAnswer3 = False
                         showSecurityQuestions = True
                         print("Boton #1 pulsado")
-                        eventLog = {"date": "Fecha: " + str(date.year) + " - " + str(date.month) + " - " + str(date.day),
+                        eventLog = {"date":getTimestamp(),
                                     "log": "Se solicito permiso para ingresar a la casa por medio de las preguntas de seguridad"}
                         db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
 
-                    while (True):
+                    while (showSecurityQuestions):
 
                         print("Responde las preguntas")
                         lecturaPulsador2 = GPIO.input(pulsador2)
@@ -363,25 +394,29 @@ try:
                             sleep(1)
                             if (correctAnswers == 3):
                                 eventLog = {
-                                    "date": "Fecha: " + str(date.year) + " - " + str(date.month) + " - " + str(
-                                        date.day),
+                                    "date": getTimestamp(),
                                     "log": "Se ingreso a la casa por medio de las preguntas de seguirdad"}
                                 db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
                                 writeMSMLCD('Bienvenido', 1)
                                 writeMSMLCD('a tu casa', 2)
                             else:
-                                # "Fecha: " + str(date.year) + " - " + str(date.month) + " - " + str(date.day)
+                                #getTimestamp()
                                 eventLog = {
-                                    "date": "Fecha: " + str(date.year) + " - " + str(date.month) + " - " + str(date.day),
+                                    "date":getTimestamp(),
                                     "log": "Se bloqueo el sistema, preguntas de seguridad incorrectas"}
                                 db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
-                                writeMSMLCD('Tu sistema se bloqueo totalmente por seguridad', 1)
+                                writeMSMLCD('Sistema bloqueado', 1)
+                                writeMSMLCD('por seguridad', 2)
                                 db.child("active-systems").child(idProduct).child("system-information").child(
                                     "lockSystem").set(True)
+                                sleep(4)
                             break
                             # permissions['typeAccess']
 
-                    #validos los permisos que le estan pidiendo a la rasberry
+
+
+
+                    #validos los permisos que le estan pidiendo a la rasberry ya sea para entrar a la casa o no
                     if (typeAccess == "scan-sensors"):
                             eventLog = {"date": "Fecha:"+str(date.year)+"-"+str(date.month)+"-"+str(date.day),
                                         "log":"Se solicito permiso para hacer un escaneo del sistema"}
@@ -389,7 +424,8 @@ try:
                             db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
 
                             db.child("active-systems").child(idProduct).child("system-information").child(
-                                "permissionResponse").update({'typeAccess': "n"})
+                                "permissionResponse").update({"typeAccess": "."})
+
 
                             if(isModeScan == True):
                                 db.child("active-systems").child(idProduct).child("system-information").child(
@@ -398,54 +434,68 @@ try:
                                 db.child("active-systems").child(idProduct).child("system-information").child(
                                     "modeScan").set(True)
 
+
                     elif(typeAccess == "access-house"):
                         writeMSMLCD("Validando acceso...",1)
-                        eventLog = {"date": "Fecha:" + str(date.year) + "-" + str(date.month) + "-" + str(date.day),
+                        eventLog = {"date": getTimestamp(),
                                     "log": "Se solicito permiso para entrar a la casa"}
                         db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
+
                         db.child("active-systems").child(idProduct).child("system-information").child(
-                            "permissionResponse").update({'typeAccess': "busy"})
+                            "permissionResponse").update({"typeAccess": "busy"})
 
 
                         if(db.child("active-systems").child(idProduct).child("users").child(idUser)
                                    .child("status").get().val()==0):
-                            writeMSMLCD("Validando el acceso...", 1)
                             sleep(1)
-                            response = {"date": "Fecha:" + str(date.year) + "-" + str(date.month) + "-" + str(date.day),
-                                        "typeAccess": typeAccess,
+                            response = {"date": getTimestamp(),
                                         "response":"0"}
-                            #db.child("active-systems").child(idProduct).child("users").child(idUser)\
-                                #.child("permissionResponse").set(response)
-                            writeMSMLCD("No tienes permiso", 1)
-                            writeMSMLCD("de ningun tipo",2)
+                            db.child("active-systems").child(idProduct).child("system-information").child("permissionResponse").set(response)
+                            db.child("active-systems").child(idProduct).child("system-information").child(
+                                "permissionResponse").update({"typeAccess": "."})
+                            writeMSMLCD("Sin permiso", 1)
+                            writeMSMLCD("a la casa",2)
                             break
                         else:
-
-                            response = {"date": "Fecha:" + str(date.year) + "-" + str(date.month) + "-" + str(date.day),
-                                        "typeAccess": typeAccess,
+                            response = {"date": getTimestamp(),
                                         "response": "1"}
-                            db.child("active-systems").child(idProduct).child("users").child(idUser) \
-                                .child("permissionResponse").set(response)
+                            db.child("active-systems").child(idProduct).child("system-information").child(
+                                "permissionResponse").update(response)
                             writeMSMLCD("Ingrese",1)
-                            writeMSMLCD("su código",2)
-                            sleep(2)
+                            writeMSMLCD("su clave",2)
+                            sleep(1)
                             codeAccess = db.child("active-systems").child(idProduct).child("users").child(
-                                idUser).child("inputCode").get().val()
-                            for i in range (1,20):
+                                idUser).child("codeAccess").get().val()
+                            for i in range (1,30):
+                                sleep(1)
                                 inputCode = db.child("active-systems").child(idProduct).child("users").child(idUser).child("inputCode").get().val()
                                 print("Leyendo el código de acceso")
                                 if(codeAccess == inputCode):
+                                    print("Clave Correcta")
                                     db.child("active-systems").child(idProduct).child("users").child(
-                                        idUser).child("inputCode").set(".")
-                                    # Enviamos un pulso del 4.5% para girar los servos hacia la izquierda
-                                    moveServomotors(s1,3.2)#abrir
+                                        idUser).child("inputCode").set("correct")
                                     writeMSMLCD("Bienvenido",1)
+                                    writeMSMLCD("a casa", 2)
                                     writeMSMLCD(db.child("active-systems").child(idProduct).child("users").child(idUser).child("name").get().val(), 2)
-                                    checkIn = {"timestamp": "Fecha: " + str(date.year) + " - " + str(date.month) + " - " + str(
-                                        date.day),
+                                    checkIn = {"timestamp": getTimestamp(),
                                                 "idUser": idUser}
                                     db.child("active-systems").child(idProduct).child("users-registration").push(checkIn)
+                                    thereAreUsers = True
+                                    print("Puerta Abierta")
+                                    s1 = GPIO.PWM(servo1,50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+                                    s1.start(0)
+                                    sleep(0.5)
+                                    moveServomotors(s1, 7.5)  #
+                                    sleep(0.5)
+                                    s1.stop()
+                                    db.child("active-systems").child(idProduct).child("system-information").child(
+                                        "servo1").set(3)
+                                    closeDoor = True
                                     break
+                                elif(inputCode != -1):
+                                    print("Clave incorrecta")
+                                    db.child("active-systems").child(idProduct).child("users").child(
+                                        idUser).child("inputCode").set("incorrect")
                                 sleep(1)
 
 
@@ -456,6 +506,7 @@ try:
 
                 # lectura del dato <alarm> en firebase
                 alarm = db.child("active-systems").child(idProduct).child("system-information").child("alarm").get().val()
+
 
 
                 if (alarm == True):
@@ -473,9 +524,6 @@ try:
                     GPIO.output(pinAlarm, GPIO.LOW)
 
 
-                # lectura del dato de firebase
-                isModeScan = db.child("active-systems").child(idProduct).child("system-information").child("modeScan").get().val()
-
 
                 #leemos la lectura digital del pi del IR(de la ventana #1)
                 lecturaIR1 = GPIO.input(pinIR1)
@@ -486,7 +534,8 @@ try:
 
                 lecturaPIR = GPIO.input(pinPIR1)
 
-
+                #db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(False)
+                #db.child("active-systems").child(idProduct).child("system-information").child("servo2").set(False)
 
                 # Enviamos un pulso del 4.5% para girar los servos hacia la izquierda
                 #moveServomotors(4.5)
@@ -498,14 +547,24 @@ try:
                 #moveServomotors(7.5)
 
 
+
+
                 #Cerrar ventana #1
                 ##moveServomotors(10.5)
                 ##moveServomotors(10.5)
-
-                listenerSensor()
-
-
-
+                if(thereAreUsers==False):
+                     listenerSensor()
+                else:
+                    if(lecturaIR3 == False) & closeDoor == True:
+                        closeDoor = False
+                        print("Puerta Cerrada")
+                        s1 = GPIO.PWM(servo1, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+                        s1.start(0)
+                        sleep(0.5)
+                        moveServomotors(s1, 12.2)  #
+                        sleep(0.5)
+                        s1.stop()
+                        db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(3)
 
             else:
                 writeMSMLCD('Este producto no esta licenciado',1)
@@ -513,21 +572,73 @@ try:
                 print("Este producto no esta licenciado")
                 if(sendLicenseReport):
                     sendLicenseReport = False
-                    eventLog = {"date": "Fecha: " + str(date.year) + " - " + str(date.month) + " - " + str(date.day),
+                    eventLog = {"date":getTimestamp(),
                                 "description": "El producto con identificado con ID-->"+idProduct+
                                                " no esta licenciado o no se ha registrado todavia"}
                     db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
 
+#SISTEMA APAGADO
         else:
+            GPIO.output(pinAlarm, GPIO.LOW)
             writeMSMLCD('Sistema', 1)
             writeMSMLCD('Desactivado', 2)
 
+            ##EL SISTEMA ESTA APAGADO PERO PUEDE MOVER PUERTAS Y VENTANAS
+            
+            if(isModeScan):
 
+
+                print("Modo SCAN activada")
+                
+                statusServo1 = db.child("active-systems").child(idProduct).child("system-information").child("servo1").get().val()
+
+                statusServo2 = db.child("active-systems").child(idProduct).child("system-information").child("servo2").get().val()
+
+
+                if(statusServo1==2):
+                    print("Puerta Cerrada")
+                    s1 = GPIO.PWM(servo1, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+                    s1.start(0)
+                    sleep(0.5)
+                    moveServomotors(s1, 12.2)  #
+                    sleep(0.5)
+                    s1.stop()
+                    db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(3)
+                elif(statusServo1==1):
+                    print("Puerta Abierta")
+                    s1 = GPIO.PWM(servo1, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+                    s1.start(0)
+                    sleep(0.5)
+                    moveServomotors(s1, 7.5)  #
+                    sleep(0.5)
+                    s1.stop()
+                    db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(3)
+
+
+                if (statusServo2==2):
+                    print("Ventana2 Cerrada")
+                    s2 = GPIO.PWM(servo2, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+                    s2.start(0)
+                    sleep(0.5)
+                    moveServomotors(s2, 12.2)  #
+                    sleep(0.5)
+                    s2.stop()
+                    db.child("active-systems").child(idProduct).child("system-information").child("servo2").set(3)
+                elif(statusServo2==1):
+                    print("Ventana2 Abierta")
+                    s2 = GPIO.PWM(servo2, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+                    s2.start(0)
+                    sleep(0.5)
+                    moveServomotors(s2, 7.5)  #
+                    sleep(0.5)
+                    s2.stop()
+                    db.child("active-systems").child(idProduct).child("system-information").child("servo2").set(3)
 
         # es como un delay pero en segundos, es 2 segundos
         sleep(1)
 except KeyboardInterrupt:
     s1.stop()
+    s2.stop()
     GPIO.cleanup()
     clear_lcd(0)
 #except Exception as e:
