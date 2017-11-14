@@ -175,11 +175,13 @@ def listenerSensor():
     #---------------------------Sensores de la ventana---------------------
     if (lecturaIR1 == False):
         # la alarma encendida solo por 4 segundos
+        GPIO.output(pinAlarm, GPIO.HIGH)
         db.child("active-systems").child(idProduct).child("system-information").child("alarm").set(True)
         messageLog = "El sensor #1 de la ventana detecto movimiento"
         print("Se detecto movimiento en la ventana #1")
+        sendPushNotication("Intruso","Se ha detectado movimiento en la ventana #1",tokensDevices)
         #print("Ventana2 Cerrada")
-        #moveServomotors(s2, 7.5)  # cerrar
+        moveServomotors(servo1, 12.2)  # cerrar
         
     if (isModeScan == True):
             # se envia a firebase
@@ -189,11 +191,13 @@ def listenerSensor():
 
     if (lecturaIR2 == False):
         # la alarma encendida solo por 4 segundos
+        GPIO.output(pinAlarm, GPIO.HIGH)
         db.child("active-systems").child(idProduct).child("system-information").child("alarm").set(True)
         messageLog = "El sensor #2 de la ventana detecto movimiento"
         print("Se detecto movimiento en la ventana #2")
         print("Ventana2 Cerrada")
-        moveServomotors(s2, 7.5)  # cerrar
+        moveServomotors(servo2, 12.2)  # cerrar
+        sendPushNotication("Intruso", "Se ha detectado movimiento en la ventana #2", tokensDevices)
         if (isModeScan == True):
             # se envia a firebase
             db.child("report-scan-sensors").child(idProduct).push().set("DM")
@@ -202,10 +206,11 @@ def listenerSensor():
 
     if (lecturaIR3 == False):
         # la alarma encendida solo por 4 segundos
+        GPIO.output(pinAlarm, GPIO.HIGH)
         db.child("active-systems").child(idProduct).child("system-information").child("alarm").set(True)
         messageLog = "El sensor #3 de la ventana detecto movimiento"
         print("Se detecto movimiento en la ventana #3")
-
+        sendPushNotication("Intruso", "Se ha detectado movimiento en la ventana #3", tokensDevices)
         if (isModeScan == True):
             # se envia a firebase
             db.child("report-scan-sensors").child(idProduct).push().set("DM")
@@ -218,6 +223,7 @@ def listenerSensor():
         db.child("active-systems").child(idProduct).child("system-information").child("alarm").set(True)
         messageLog = "El sensor #4 de la sala, detecto movimiento"
         print("Se detecto movimiento en la sala")
+        sendPushNotication("Intruso", "Se ha detectado movimiento en la sala", tokensDevices)
 
 
     if(messageLog):
@@ -228,28 +234,33 @@ def listenerSensor():
 
 
 # Metodo que mueve los servos
-def moveServomotors(servo,pulso):
+def moveServomotors(pinServo,pulso):
+    servo = GPIO.PWM(pinServo, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
+    servo.start(0)
+    sleep(0.5)
     servo.ChangeDutyCycle(pulso)
+    sleep(0.5)
+    servo.stop()
 
 
 def getTimestamp():
     return "14 de Nov 2017 - Hora: "+str(date.hour)+":"+str(date.minute)#+":"+str(date.second)
 
 
-def sendPushNotication(title,body,message,tokensDevices):
-
+def sendPushNotication(body, message, tokensDevices):
     dataNotification = {
         "body": body,
-        "title": title,
-        "bigContent":message,
+        "title": "☆ GoFY ☆",
+        "bigContent": message,
         "summaryText": body,
         "idNotification": 80,
         "content_available": True,
         "priority": "high"}
 
     #registration_id = "ev4T56UkvMU:APA91bGnFXivWkg_QhO4KudC5uXD9v7K24OertgdtH57TDTH-eoIIYzHeZsTBQv1cZjccKC1zMFThS-kHQojcJYg36WTa-8qE5Lv0FmlDFv170t4HN5RIlkh4_HUsLLWo7wIuEbluBam"
-
-    fcmPush.send_multiple(tokensDevices, notification, dataNotification)
+    for i in range(len(tokensDevices)):
+        fcmPush.send_single(tokensDevices[i], notification, dataNotification)
+    print("Notificación enviada")
 
 
 
@@ -345,17 +356,15 @@ try:
                         eventLog = {"date":getTimestamp(),
                                     "log": "Se solicito permiso para ingresar a la casa por medio de las preguntas de seguridad"}
                         db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
-
+                        writeMSMLCD('Mantener precionado', 1)
+                        writeMSMLCD('el boton', 2)
                     while (showSecurityQuestions):
 
-                        print("Responde las preguntas")
+                        print("Preguntas de seguridad")
                         lecturaPulsador2 = GPIO.input(pulsador2)
 
                         lecturaPulsador3 = GPIO.input(pulsador3)
 
-                        writeMSMLCD('Mantener precionado', 1)
-                        writeMSMLCD('el boton', 2)
-                        sleep(2)
 
                         answer = db.child("active-systems").child(idProduct).child("list-safety-questions").child(
                             "question" + str(actualSecurityQuestions)).get().val()
@@ -363,41 +372,59 @@ try:
                         # Escribimos en la LCD la pregunta #1
                         writeMSMLCD(answer, 1)
 
+                        sleep(1)
+
                         if (readyAnswer1 == False):
-                            sleep(2)
+                            #sleep(1)
                             if (lecturaPulsador2 == GPIO.HIGH):
                                 correctAnswers += 1
                                 actualSecurityQuestions += 1
                                 readyAnswer1 = True
+                                writeMSMLCD('Siguiente', 1)
+                                writeMSMLCD('pregunta', 2)
+                                sleep(1.5)
                             elif (lecturaPulsador3 == GPIO.HIGH):
                                 actualSecurityQuestions += 1
                                 readyAnswer1 = True
+                                writeMSMLCD('Siguiente', 1)
+                                writeMSMLCD('pregunta', 2)
+                                sleep(1.5)
 
                         elif (readyAnswer2 == False):
-                            sleep(2)
+                            #sleep(1)
                             if (lecturaPulsador2 == GPIO.HIGH):
                                 correctAnswers += 1
                                 actualSecurityQuestions += 1
                                 readyAnswer2 = True
+                                writeMSMLCD('Siguiente', 1)
+                                writeMSMLCD('pregunta', 2)
+                                sleep(1.5)
                             elif (lecturaPulsador3 == GPIO.HIGH):
                                 actualSecurityQuestions += 1
                                 readyAnswer2 = True
+                                writeMSMLCD('Siguiente', 1)
+                                writeMSMLCD('pregunta', 2)
+                                sleep(1.5)
 
                         if (readyAnswer3 == False):
-                            sleep(2)
+                            #sleep(1)
                             if (lecturaPulsador2 == GPIO.HIGH):
                                 correctAnswers += 1
-                                actualSecurityQuestions += 1
                                 readyAnswer3 = True
+                                writeMSMLCD('Siguiente', 1)
+                                writeMSMLCD('pregunta', 2)
+                                sleep(1.5)
                             elif (lecturaPulsador3 == GPIO.HIGH):
-                                actualSecurityQuestions += 1
                                 readyAnswer3 = True
+                                writeMSMLCD('Siguiente', 1)
+                                writeMSMLCD('pregunta', 2)
+                                sleep(1.5)
 
                         if (readyAnswer1 and readyAnswer2 and readyAnswer3):
                             showSecurityQuestions = False
                             writeMSMLCD('El sistema', 1)
                             writeMSMLCD('esta validando...', 2)
-                            sleep(1)
+                            sleep(3)
                             if (correctAnswers == 3):
                                 eventLog = {
                                     "date": getTimestamp(),
@@ -405,6 +432,8 @@ try:
                                 db.child("active-systems").child(idProduct).child("event-logs").push(eventLog)
                                 writeMSMLCD('Bienvenido', 1)
                                 writeMSMLCD('a tu casa', 2)
+                                moveServomotors(servo1, 7.5)  # abrir
+                                sendPushNotication("Nueva entrada a la casa", "Un miembro de la casa solicito acceso y accedió con las preguntas de la seguridad",tokensDevices)
                             else:
                                 #getTimestamp()
                                 eventLog = {
@@ -450,6 +479,8 @@ try:
                         db.child("active-systems").child(idProduct).child("system-information").child(
                             "permissionResponse").update({"typeAccess": "busy"})
 
+                        nameUser = db.child("active-systems").child(idProduct).child("users").child(idUser).child(
+                            "name").get().val()
 
                         if(db.child("active-systems").child(idProduct).child("users").child(idUser)
                                    .child("status").get().val()==0):
@@ -461,6 +492,7 @@ try:
                                 "permissionResponse").update({"typeAccess": "."})
                             writeMSMLCD("Sin permiso", 1)
                             writeMSMLCD("a la casa",2)
+                            sendPushNotication("Permiso denegado", nameUser + " no tiene permisos y esta intentando ingresar a la casa",tokensDevices)
                             break
                         else:
                             response = {"date": getTimestamp(),
@@ -481,22 +513,17 @@ try:
                                     db.child("active-systems").child(idProduct).child("users").child(
                                         idUser).child("inputCode").set("correct")
                                     writeMSMLCD("Bienvenido",1)
-                                    writeMSMLCD("a casa", 2)
-                                    writeMSMLCD(db.child("active-systems").child(idProduct).child("users").child(idUser).child("name").get().val(), 2)
+                                    writeMSMLCD(nameUser, 2)
                                     checkIn = {"timestamp": getTimestamp(),
                                                 "idUser": idUser}
                                     db.child("active-systems").child(idProduct).child("users-registration").push(checkIn)
                                     thereAreUsers = True
                                     print("Puerta Abierta")
-                                    s1 = GPIO.PWM(servo1,50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-                                    s1.start(0)
-                                    sleep(0.5)
-                                    moveServomotors(s1, 7.5)  #
-                                    sleep(0.5)
-                                    s1.stop()
+                                    moveServomotors(servo1, 7.5)  #
                                     db.child("active-systems").child(idProduct).child("system-information").child(
                                         "servo1").set(3)
                                     closeDoor = True
+                                    sendPushNotication("Nueva entrada a la casa",nameUser+" ha entrado a la casa",tokensDevices)
                                     break
                                 elif(inputCode != -1):
                                     print("Clave incorrecta")
@@ -545,19 +572,14 @@ try:
                      tokensDevices = []
                      #len(tokensDevices)
                      for tokenDevice in db.child("active-systems").child(idProduct).child("tokens-users").get().each():
-                         tokensDevices.append(tokenDevice.va())
+                         tokensDevices.append(tokenDevice.val())
                          #key = tokenDevice.key()
                      listenerSensor()
                 else:
                     if(lecturaIR3 == False) & closeDoor == True:
                         closeDoor = False
                         print("Puerta Cerrada")
-                        s1 = GPIO.PWM(servo1, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-                        s1.start(0)
-                        sleep(0.5)
-                        moveServomotors(s1, 12.2)  #
-                        sleep(0.5)
-                        s1.stop()
+                        moveServomotors(servo1, 12.2)  #
                         db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(3)
 
             else:
@@ -591,48 +613,26 @@ try:
 
                 if(statusServo1==2):
                     print("Puerta Cerrada")
-                    s1 = GPIO.PWM(servo1, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-                    s1.start(0)
-                    sleep(0.5)
-                    moveServomotors(s1, 12.2)  #
-                    sleep(0.5)
-                    s1.stop()
+                    moveServomotors(servo1, 12.2)  #
                     db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(3)
                 elif(statusServo1==1):
                     print("Puerta Abierta")
-                    s1 = GPIO.PWM(servo1, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-                    s1.start(0)
-                    sleep(0.5)
-                    moveServomotors(s1, 7.5)  #
-                    sleep(0.5)
-                    s1.stop()
+                    moveServomotors(servo1, 7.5)  #
                     db.child("active-systems").child(idProduct).child("system-information").child("servo1").set(3)
 
 
                 if (statusServo2==2):
                     print("Ventana2 Cerrada")
-                    s2 = GPIO.PWM(servo2, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-                    s2.start(0)
-                    sleep(0.5)
-                    moveServomotors(s2, 12.2)  #
-                    sleep(0.5)
-                    s2.stop()
+                    moveServomotors(servo2, 12.2)  #
                     db.child("active-systems").child(idProduct).child("system-information").child("servo2").set(3)
                 elif(statusServo2==1):
                     print("Ventana2 Abierta")
-                    s2 = GPIO.PWM(servo2, 50)  # Ponemos el pin servo1 en modo PWM y enviamos 50 pulsos por segundo
-                    s2.start(0)
-                    sleep(0.5)
-                    moveServomotors(s2, 7.5)  #
-                    sleep(0.5)
-                    s2.stop()
+                    moveServomotors(servo2, 7.5)  #
                     db.child("active-systems").child(idProduct).child("system-information").child("servo2").set(3)
 
         # es como un delay pero en segundos, es 2 segundos
         sleep(1)
 except KeyboardInterrupt:
-    s1.stop()
-    s2.stop()
     GPIO.cleanup()
     clear_lcd(0)
 #except Exception as e:
